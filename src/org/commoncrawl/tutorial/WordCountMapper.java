@@ -40,8 +40,8 @@ public class WordCountMapper extends MapReduceBase
       OutputCollector<Text, LongWritable> output, Reporter reporter)
       throws IOException {
     try {
-      if (!value.getMimeType().contains("text")) {
-        return;  // Only parse text.
+      if (!value.getMimeType().contains("pdf")) {
+        return;  // Only parse pdfs.
       }
       // Retrieves page content from the passed-in ArcFileItem.
       ByteArrayInputStream inputStream = new ByteArrayInputStream(
@@ -74,10 +74,10 @@ public class WordCountMapper extends MapReduceBase
 	  pageText = StringUtils.join(words," ");
 	  output.collect(new Text(pageText), new LongWritable(1));
 	  String[] arguments = new String[8];
-	  arguments[0]="--path https://s3.amazonaws.com/m-lagoma-commoncrawl-tutorial/Model/part-00000";
+	  arguments[0]="--path https://s3.amazonaws.com/";
 	  arguments[1]=pageText;
 	  arguments[2]="--encoding UTF-8";
-	  arguments[3]="analyzer lol";
+	  //arguments[3]="analyzer";
 	  arguments[4]="--defaultCat unknown";
 	  arguments[5]="--gramSize 1";
 	  arguments[6]="--classifierType bayes";
