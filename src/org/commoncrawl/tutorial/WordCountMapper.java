@@ -11,8 +11,19 @@ import org.jsoup.Jsoup;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Scanner;
 import java.util.regex.Pattern;
+
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.pdf.PDFParser;
+import org.apache.tika.sax.BodyContentHandler;
+
+import org.xml.sax.ContentHandler;
+import org.xml.sax.SAXException;
+
+import org.apache.commons.lang.StringUtils;
 
 /**
  * Outputs all words contained within the displayed text of pages contained
@@ -36,20 +47,56 @@ public class WordCountMapper extends MapReduceBase
       ByteArrayInputStream inputStream = new ByteArrayInputStream(
           value.getContent().getReadOnlyBytes(), 0,
           value.getContent().getCount());
-      // Converts InputStream to a String.
-      String content = new Scanner(inputStream).useDelimiter("\\A").next();
-      // Parses HTML with a tolerant parser and extracts all text.
-      String pageText = Jsoup.parse(content).text();
+		  
+      String pageText = new String();
+			try {
+				pageText = parse(inputStream);
+			} catch (Throwable t) {
+				err.println("Could not parse document:" + t.getClass() + ":"
+						+ t.getMessage());
+				t.printStackTrace(err);
+			}
       // Removes all punctuation.
       pageText = REGEX_NON_ALPHANUMERIC.matcher(pageText).replaceAll("");
-      // Splits by space and outputs to OutputCollector.
-      for (String word : REGEX_SPACE.split(pageText)) {
-        output.collect(new Text(word), new LongWritable(1));
-      }
+      // Normalizes whitespace to single spaces.
+      pageText = pageText.replaceAll("\\s+", " ");
+      String[] words=new String[500];
+	  int x = 0;
+	  for (String word : pageText.split(" ")) {
+		if (x<500){
+		  words[x]=word;
+		  x++;
+		}
+		else{
+		  break;
+		}
+	  }
+	  pageText = StringUtils.join(words," ");
+	  output.collect(new Text(pageText), new LongWritable(1));
+	  String[] arguments = new String[8];
+	  arguments[0]="--path https://s3.amazonaws.com/m-lagoma-commoncrawl-tutorial/Model/part-00000";
+	  arguments[1]=pageText;
+	  arguments[2]="--encoding UTF-8";
+	  arguments[3]="analyzer lol";
+	  arguments[4]="--defaultCat unknown";
+	  arguments[5]="--gramSize 1";
+	  arguments[6]="--classifierType bayes";
+	  arguments[7]="--dataSource hdfs";
     }
     catch (Exception e) {
       reporter.getCounter("WordCountMapper.exception",
           e.getClass().getSimpleName()).increment(1);
     }
+  }
+  private static String parse(ByteArrayInputStream input1)
+	  throws IOException, SAXException, TikaException {
+
+	InputStream input = input1;
+	ContentHandler textHandler = new BodyContentHandler();
+	Metadata metadata = new Metadata();
+	PDFParser parser = new PDFParser();
+	parser.parse(input, textHandler, metadata);
+	input.close();
+	return textHandler.toString();
   }
 }
